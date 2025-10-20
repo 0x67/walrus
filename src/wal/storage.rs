@@ -21,10 +21,16 @@ impl FdBackend {
         opts.read(true).write(true);
 
         #[cfg(unix)]
-        if use_o_sync {
-            opts.custom_flags(libc::O_SYNC);
+        {
+            if use_o_sync {
+                opts.custom_flags(libc::O_SYNC);
+            }
         }
 
+        #[cfg(windows)]
+        {
+            let _ = use_o_sync; // Mark as used if you want to keep the parameter
+        }
         let file = opts.open(path)?;
         let metadata = file.metadata()?;
         let len = metadata.len() as usize;
@@ -33,15 +39,33 @@ impl FdBackend {
     }
 
     pub(crate) fn write(&self, offset: usize, data: &[u8]) {
-        use std::os::unix::fs::FileExt;
-        // pwrite doesn't move the file cursor
-        let _ = self.file.write_at(data, offset as u64);
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::FileExt;
+            // pwrite doesn't move the file cursor
+            let _ = self.file.seek_write(data, offset as u64);
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::FileExt;
+            // pwrite doesn't move the file cursor
+            let _ = self.file.write_at(data, offset as u64);
+        }
     }
 
     pub(crate) fn read(&self, offset: usize, dest: &mut [u8]) {
-        use std::os::unix::fs::FileExt;
-        // pread doesn't move the file cursor
-        let _ = self.file.read_at(dest, offset as u64);
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::FileExt;
+            // pread doesn't move the file cursor
+            let _ = self.file.seek_read(dest, offset as u64);
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::FileExt;
+            // pread doesn't move the file cursor
+            let _ = self.file.read_at(dest, offset as u64);
+        }
     }
 
     pub(crate) fn flush(&self) -> std::io::Result<()> {
